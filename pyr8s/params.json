@@ -1,0 +1,143 @@
+{
+  "general": {
+    "label": "General",
+    "fields": {
+      "perturb_factor": {
+        "label":    "Perturb Factor",
+        "doc":      "Perturb Factor.",
+        "type":     "float",
+        "default":  0.01
+      },
+      "number_of_guesses": {
+        "label":    "Number of guesses",
+        "doc":      "How many times to solve the problem.",
+        "type":     "int",
+        "default":  1
+      },
+      "largeval": {
+        "label":    "Large value",
+        "doc":      "For clamping.",
+        "type":     "float",
+        "default":  1e30
+      },
+      "scalar": {
+        "label":    "Scalar",
+        "doc":      "Force root age at 1.0.",
+        "type":     "bool",
+        "default":  false
+      }
+    }
+  },
+  "branch_length": {
+    "label": "Branch Length",
+    "fields": {
+      "persite": {
+        "label":    "Per Site",
+        "doc":      "Per site?",
+        "type":     "bool",
+        "default":  false
+      },
+      "nsites": {
+        "label":    "Subs per site",
+        "doc":      "#Per site?",
+        "type":     "int",
+        "default":  1
+      },
+      "round": {
+        "label":    "Round",
+        "doc":      "Always true or algorithms don't diverge somehow...",
+        "type":     "bool",
+        "default":  true
+      }
+    }
+  },
+  "barrier": {
+    "label": "Barrier",
+    "fields": {
+      "manual": {
+        "label":    "Manual",
+        "doc":      "True, auto doesn't work",
+        "type":     "bool",
+        "default":  true
+      },
+      "max_iterations": {
+        "label":    "Max Iterations",
+        "doc":      "Repeatedly close barrier.",
+        "type":     "int",
+        "default":  10
+      },
+      "initial_factor": {
+        "label":    "Initial Factor",
+        "doc":      "Initial Factor.",
+        "type":     "float",
+        "default":  0.25
+      },
+      "multiplier": {
+        "label":    "Multiplier",
+        "doc":      "Multiplier.",
+        "type":     "float",
+        "default":  0.10
+      },
+      "tolerance": {
+        "label":    "Tolerance",
+        "doc":      "Tolerance.",
+        "type":     "float",
+        "default":  0.0001
+      }
+    }
+  },
+  "method": {
+    "label": "Method",
+    "fields": {
+      "method": {
+        "label":    "Method",
+        "doc":      "Pick one.",
+        "type":     "list",
+        "default":  "nprs",
+        "data": {
+          "items":  ["nprs", "pl"],
+          "labels": ["NPRS", "Penalized"]
+          }
+      },
+      "exponent": {
+        "label":    "Exponent",
+        "doc":      "Exponent.",
+        "type":     "int",
+        "default":  2
+      },
+      "logarithmic": {
+        "label":    "Logarithmic",
+        "doc":      "Logarithmic.",
+        "type":     "bool",
+        "default":  false
+      }
+    }
+  },
+  "algorithm": {
+    "label": "Algorithm",
+    "fields": {
+      "algorithm": {
+        "label":    "Algorithm",
+        "doc":      "Algorithm.",
+        "type":     "list",
+        "default":  "powell",
+        "data": {
+          "items":  ["powell", "tnc"],
+          "labels": ["Powell", "TNC"]
+          }
+      },
+      "variable_tolerance": {
+        "label":    "Variable tolerance",
+        "doc":      "Variable tolerance.",
+        "type":     "float",
+        "default":  1e-8
+      },
+      "function_tolerance": {
+        "label":    "Function tolerance",
+        "doc":      "Function tolerance.",
+        "type":     "float",
+        "default":  1e-8
+      }
+    }
+  }
+}
