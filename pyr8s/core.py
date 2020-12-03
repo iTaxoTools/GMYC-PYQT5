@@ -817,9 +817,10 @@ class RateAnalysis:
             for node in dendrotree.postorder_node_iter():
                 if node.edge_length is not None and node.edge_length > max:
                     max = node.edge_length
-            while max < 1000:
-                max *= 10
-            analysis.param.branch_length.nsites = int(max)
+            mult = 1
+            while max*mult < 1000:
+                mult *= 10
+            analysis.param.branch_length.nsites = int(mult)
         res = analysis.run()
         chrono = res.chronogram.as_string(schema='newick', suppress_rooting=True)
         return chrono
