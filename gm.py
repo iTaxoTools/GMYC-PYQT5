@@ -93,8 +93,7 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
                 nexus.blocks['trees'].detranslate()
                 stree = nexus.trees.trees[0]
             if inputformat != "ultrametric":
-                 stree = pyr8s.core.RateAnalysis.quick(stree, nsites= 100)
-
+                 stree = pyr8s.core.RateAnalysis.quick(stree)
             treetest.close()
 
             llh_list = []
@@ -103,7 +102,10 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             best_llh = float("-inf")
             best_num_spe = -1
             best_node = None
-            utree = um_tree(tree)
+            if inputformat == "ultrametric":
+                utree = um_tree(tree)
+            else:
+                utree = um_tree(stree)
             for tnode in utree.nodes:
                 QApplication.processEvents()
                 wt_list, num_spe = utree.get_waiting_times(threshold_node = tnode)
@@ -178,7 +180,8 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             # else:
             #     return spes
 
-        except Exception:
+        except Exception as e:
+            print(str(e))
             self.pushButton_3.setText('Run analysis and save GMYC output')
             QMessageBox.warning(self, "Warning", "The species demitation output not obtained, please check input file type")
             return

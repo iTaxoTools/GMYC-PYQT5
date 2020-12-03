@@ -138,7 +138,7 @@ See: Fujisawa T, Barraclough TG (2013) Systematic Biology 62:707–724.</string>
               <enum>QFrame::Box</enum>
              </property>
              <property name="text">
-              <string>check the radiobutton if tree is ultrametric else tool will create one using pyr8s (Stefanos Patmanidis)</string>
+              <string>check the radiobutton if tree is ultrametric else tool will create one using pyr8s</string>
              </property>
             </widget>
            </item>
