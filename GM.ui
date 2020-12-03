@@ -42,7 +42,7 @@ border-bottom-color: rgb(96, 96, 200);</string>
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
-         <widget class="QWidget" name="">
+         <widget class="QWidget" name="layoutWidget">
           <layout class="QVBoxLayout" name="verticalLayout_2">
            <property name="spacing">
             <number>0</number>
@@ -93,7 +93,7 @@ See: Fujisawa T, Barraclough TG (2013) Systematic Biology 62:707–724.</string>
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="">
+         <widget class="QWidget" name="layoutWidget">
           <layout class="QVBoxLayout" name="verticalLayout">
            <item>
             <widget class="QLabel" name="label_2">
@@ -101,7 +101,7 @@ See: Fujisawa T, Barraclough TG (2013) Systematic Biology 62:707–724.</string>
               <enum>QFrame::Box</enum>
              </property>
              <property name="text">
-              <string>The input tree should be in Newick format. Choose a p value</string>
+              <string>The input tree should be in Newick format.</string>
              </property>
             </widget>
            </item>
@@ -176,7 +176,7 @@ See: Fujisawa T, Barraclough TG (2013) Systematic Biology 62:707–724.</string>
           </layout>
          </widget>
         </widget>
-        <widget class="QWidget" name="">
+        <widget class="QWidget" name="layoutWidget">
          <layout class="QHBoxLayout" name="horizontalLayout_3">
           <item>
            <widget class="QGraphicsView" name="graphicsView">

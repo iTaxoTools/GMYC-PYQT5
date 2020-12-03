@@ -571,6 +571,7 @@ class tree_time:
     def show(self):
         print("This is tree_time with spe event: " + repr(self.numSpeEvent) + ", coa event: " + repr(self.numCoaEvent))
 
+
     def sum_llh(self):
 
         self.llh = 0.0
@@ -886,7 +887,7 @@ if __name__ == "__main__":
 			print_options()
 			sys.exit()
 
-	
+
 	if stree == "":
 		print("Input tree is empty.")
 		print_options()

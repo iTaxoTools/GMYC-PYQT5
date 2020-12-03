@@ -26,7 +26,26 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
         self.setWindowIcon(QIcon(resource_path('icons/GMYC_icon.ico')))
         self.setupUi(self)
         self.Handel_Buttons()  # connect widget to method when triggered (clicked)
+        quit = QAction("Quit", self)
 
+        # quit.setIconVisibleInMenu(True)
+        quit.triggered.connect(self.closeEvent)
+
+
+    def closeEvent(self, event):
+
+
+         close = QMessageBox.question(self, "QUIT", "Are you sure want to stop process?",QMessageBox.Yes | QMessageBox.No)
+         if close == QMessageBox.Yes:
+
+             event.accept()
+             import sys
+             sys.exit(0)
+         else:
+
+             event.ignore()
+        # import sys
+        # sys.exit(0)
 
 
     def Handel_Buttons(self):  # call back functions
@@ -36,12 +55,10 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
         self.pushButton_4.clicked.connect(self.view)
         self.pushButton_5.clicked.connect(self.clear)
         self.pushButton_6.clicked.connect(self.takeinputs)
-        self.radioButton_2.toggled.connect(self.onClicked)
+        #self.radioButton_2.toggled.connect(self.onClicked)
 
 
-
-
-    def browse_file1(self): 
+    def browse_file1(self):
         self.browse_file = QFileDialog.getOpenFileName(self, "browse file", directory=".",filter="All Files (*.*)")
         self.lineEdit_3.setText(QDir.toNativeSeparators(str(self.browse_file[0])))
         return self.browse_file[0]
@@ -55,37 +72,114 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             self.lineEdit_2.setText(QDir.toNativeSeparators(str(filenames[0])))
 
 
-    def onClicked(self):
 
-        self.radioButton = self.sender()
-        if self.radioButton.isChecked():
-            return "ultrametric"
-        else:
-            return "non-ultrametric"
-
-
-    def download(self):
+    def download(self, tree, print_detail = True, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True, pv = 0.01, save_file= None):
         try:
 
+            self.pushButton_3.setText('Please wait analysis is going on')
             open_file= self.lineEdit_3.text()
             save_file = self.lineEdit_2.text()
-            inputformat = self.onClicked
-            stree= open_file
-            treetest = open(stree)
+            if self.radioButton_2.isChecked() == True:
+                inputformat = "ultrametric"
+
+            else:
+                inputformat=  "non-ultrametric"
+
+            tree= open_file
+            treetest = open(tree)
             l1 = treetest.readline()
             if l1.strip() == "#NEXUS":
-                nexus = NexusReader(stree)
+                nexus = NexusReader(tree)
                 nexus.blocks['trees'].detranslate()
                 stree = nexus.trees.trees[0]
+            if inputformat != "ultrametric":
+                 stree = pyr8s.core.RateAnalysis.quick(stree, nsites= 100)
 
-            if inputformat == "non-ultrametric":
-                stree = pyr8s.core.RateAnalysis.quick(stree)
             treetest.close()
-            sp = gmyc(tree = stree, print_detail = True, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True, pv = 0.01, save_file= save_file)
-            print("Final number of estimated species by GMYC: " +  repr(len(sp)))
-            del sp
+
+            llh_list = []
+            min_change = 0.1
+            max_iters = 100
+            best_llh = float("-inf")
+            best_num_spe = -1
+            best_node = None
+            utree = um_tree(tree)
+            for tnode in utree.nodes:
+                QApplication.processEvents()
+                wt_list, num_spe = utree.get_waiting_times(threshold_node = tnode)
+                tt = tree_time(wt_list, num_spe)
+                last_llh = float("-inf")
+                change = float("inf")
+                cnt = 0
+
+                while change > min_change and cnt < max_iters:
+                    cnt = cnt + 1
+
+
+                    para, nn, cc = fmin_l_bfgs_b(tar_fun, [1, 1], args = tuple([tt]), bounds = [[0, 10], [0, 10]], approx_grad = True)
+                    #para, nn, cc = fmin_tnc(tar_fun, [0, 0], args = [tt], disp = False, bounds = [[0, 10], [0, 10]], approx_grad = True)
+                    tt.update(para[0], para[1])
+                    logl = tt.sum_llh()
+                    change = abs(logl - last_llh)
+                    last_llh = logl
+                f= open(os.path.join(save_file, "result_details.txt"), "a")
+                if print_detail:
+                    print("Num spe:" + repr(num_spe) + ": " + repr(tt.sum_llh()), file= f)
+                    print("spe_lambda:" + repr(tt.spe_rate), file= f)
+                    print("coa_lambda:" + repr(tt.coa_rate), file= f)
+                    print("spe_p:" + repr(tt.spe_p), file= f)
+                    print("coa_p:" + repr(tt.coa_p), file= f)
+                    print("-----------------------------------------------------", file= f)
+                f.close()
+                final_llh = tt.sum_llh()
+                if final_llh > best_llh:
+                    best_llh = final_llh
+                    best_num_spe = num_spe
+                    best_node = tnode
+                llh_list.append(final_llh)
+
+            null_logl = optimize_null_model(utree)
+
+            wt_list, num_spe = utree.get_waiting_times(threshold_node = best_node)
+            one_spe, spes = utree.get_species()
+            lrt = lh_ratio_test(null_llh = null_logl, llh = best_llh, df = 2)
+            file2= open(os.path.join(save_file, "result_summary.txt"), "w+")
+            print("Highest llh:" + repr(best_llh), file= file2)
+            print("Num spe:" + repr(best_num_spe), file= file2)
+            print("Null llh:" + repr(null_logl), file= file2)
+            print("P-value:" + repr(lrt.get_p_value()), file= file2)
+            file2.close()
+            if show_lineages:
+                utree.num_lineages(wt_list, save_file)
+
+            if show_llh:
+                plt.plot(llh_list)
+                plt.ylabel('Log likelihood')
+                plt.xlabel('Time')
+                plt.savefig(os.path.join(save_file, "Likelihood.png"))
+
+
+            if print_species:
+                utree.print_species(save_file)
+
+            if print_species_spart:
+                utree.print_species_spart(save_file)
+
+            if show_tree:
+                utree.tree.show()
+            else:
+                utree.tree.render(os.path.join(save_file, "myoutput.png"))
+                utree.tree.render(os.path.join(save_file, "myoutput.pdf"))
+
+            self.pushButton_3.setText('Run analysis and save GMYC output')
+
+            # if lrt.get_p_value() >= pv:
+            #     return one_spe
+            # else:
+            #     return spes
 
         except Exception:
+            self.pushButton_3.setText('Run analysis and save GMYC output')
             QMessageBox.warning(self, "Warning", "The species demitation output not obtained, please check input file type")
             return
         QMessageBox.information(self, "Information", "The species delimitation output data generated successfully")
@@ -115,8 +209,6 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             QMessageBox.information(self, "Information", "The spart file is updated successfully")
 
 
-
-
     def view(self):
         try:
             save_file = self.lineEdit_2.text()
@@ -136,9 +228,6 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
         QMessageBox.information(self, "Information", "The species delimitation result image and partition generated successfully")
 
 
-
-
-
     def clear(self):
         try:
 
@@ -156,6 +245,7 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
 def main1():
 
     app=QApplication(sys.argv)
+
     window=Main()
     window.show()
     app.exec_()
