@@ -8,7 +8,8 @@ import sys, os
 from PyQt5.uic import loadUiType
 from GMYC import *
 import GMYC
-import pyr8s
+import pyr8s.parse
+from pyr8s.qt.utility import UProcess
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtGui import *
 
@@ -81,20 +82,32 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             save_file = self.lineEdit_2.text()
             if self.radioButton_2.isChecked() == True:
                 inputformat = "ultrametric"
-
             else:
                 inputformat=  "non-ultrametric"
 
-            tree= open_file
-            treetest = open(tree)
+            is_ultrametric = self.radioButton_2.isChecked()
+            # tree= open_file
+            treetest = open(open_file)
             l1 = treetest.readline()
-            if l1.strip() == "#NEXUS":
-                nexus = NexusReader(tree)
-                nexus.blocks['trees'].detranslate()
-                stree = nexus.trees.trees[0]
-            if inputformat != "ultrametric":
-                 stree = pyr8s.core.RateAnalysis.quick(stree)
+            is_nexus = (l1.strip() == "#NEXUS")
             treetest.close()
+
+            if is_nexus and is_ultrametric:
+                nexus = NexusReader(open_file)
+                nexus.blocks['trees'].detranslate()
+                newick_tree = nexus.trees.trees[0]
+                utree = um_tree(newick_tree)
+            if is_nexus and not is_ultrametric:
+                newick_tree = pyr8s.parse.quick(file=open_file)
+                utree = um_tree(newick_tree)
+            if not is_nexus and is_ultrametric:
+                utree = um_tree(open_file)
+            if not is_nexus and not is_ultrametric:
+                with open(open_file) as file:
+                    newick_tree = file.readline()
+                print(newick_tree)
+                newick_tree = pyr8s.parse.quick(tree=newick_tree)
+                utree = um_tree(newick_tree)
 
             llh_list = []
             min_change = 0.1
@@ -102,10 +115,6 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             best_llh = float("-inf")
             best_num_spe = -1
             best_node = None
-            if inputformat == "ultrametric":
-                utree = um_tree(tree)
-            else:
-                utree = um_tree(stree)
             for tnode in utree.nodes:
                 QApplication.processEvents()
                 wt_list, num_spe = utree.get_waiting_times(threshold_node = tnode)
