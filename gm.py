@@ -1,6 +1,5 @@
 """This scripts wraps-up the GMYC commandline codes in the form of pyQt5-GUI application"""
 
-
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import re
@@ -12,7 +11,6 @@ import pyr8s.parse
 from pyr8s.qt.utility import UProcess
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtGui import *
-
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -32,9 +30,14 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
         # quit.setIconVisibleInMenu(True)
         quit.triggered.connect(self.closeEvent)
 
+    # These are required for pickling when spawning a new process.
+    # Note that no information is saved and the new Main that spawns will be clean.
+    def __getstate__(self):
+        return {}
+    def __setstate__(self, data):
+        return
 
     def closeEvent(self, event):
-
 
          close = QMessageBox.question(self, "QUIT", "Are you sure want to stop process?",QMessageBox.Yes | QMessageBox.No)
          if close == QMessageBox.Yes:
@@ -52,7 +55,7 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
     def Handel_Buttons(self):  # call back functions
         self.pushButton_7.clicked.connect(self.browse_file1)
         self.pushButton_2.clicked.connect(self.browse_file3)
-        self.pushButton_3.clicked.connect(self.download_process)
+        self.pushButton_3.clicked.connect(self.download)
         self.pushButton_4.clicked.connect(self.view)
         self.pushButton_5.clicked.connect(self.clear)
         self.pushButton_6.clicked.connect(self.takeinputs)
@@ -72,43 +75,64 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             filenames = dlg.selectedFiles()
             self.lineEdit_2.setText(QDir.toNativeSeparators(str(filenames[0])))
 
+    def download(self, tree = None, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True):
 
-    def download_process(self, tree = None):
-        def work(main, *args, **kwargs):
-            main.download()
-
-        def done():
-            QMessageBox.information(self, "Information", "The species delimitation output data generated successfully")
+        open_file= self.lineEdit_3.text()
+        save_file = self.lineEdit_2.text()
+        is_ultrametric = self.radioButton_2.isChecked()
 
         def fail(exception):
             print(str(exception))
             QMessageBox.warning(self, "Warning", "The species demitation output not obtained, please check input file type")
+            pass
+
+        def done(result):
+            try:
+                (utree,wt_list,llh_list) = result
+                if show_lineages:
+                    utree.num_lineages(wt_list, save_file)
+
+                if show_llh:
+                    plt.plot(llh_list)
+                    plt.ylabel('Log likelihood')
+                    plt.xlabel('Time')
+                    plt.savefig(os.path.join(save_file, "Likelihood.png"))
+
+                if print_species:
+                    utree.print_species(save_file)
+
+                if print_species_spart:
+                    utree.print_species_spart(save_file)
+
+                if show_tree:
+                    utree.tree.show()
+                else:
+                    utree.tree.render(os.path.join(save_file, "myoutput.png"))
+                    utree.tree.render(os.path.join(save_file, "myoutput.pdf"))
+            except Exception as exception:
+                    fail(exception)
+            else:
+                QMessageBox.information(self, "Information", "The species delimitation output data generated successfully")
 
         def started():
             self.pushButton_3.setEnabled(False)
             self.pushButton_3.setText('Please wait analysis is going on')
+            pass
 
         def finished():
             self.pushButton_3.setEnabled(True)
             self.pushButton_3.setText('Run analysis and save GMYC output')
+            pass
 
-        self.launcher = UProcess(work, self)
+        self.launcher = UProcess(self.download_work, open_file=open_file, save_file=save_file, is_ultrametric=is_ultrametric)
         self.launcher.started.connect(started)
         self.launcher.finished.connect(finished)
         self.launcher.done.connect(done)
         self.launcher.fail.connect(fail)
         self.launcher.start()
 
-    def download(self, tree = None, print_detail = True, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True, pv = 0.01, save_file= None):
+    def download_work(self, open_file=None, save_file=None, is_ultrametric=None, tree = None, print_detail = True, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True, pv = 0.01):
 
-        open_file= self.lineEdit_3.text()
-        save_file = self.lineEdit_2.text()
-        if self.radioButton_2.isChecked() == True:
-            inputformat = "ultrametric"
-        else:
-            inputformat=  "non-ultrametric"
-
-        is_ultrametric = self.radioButton_2.isChecked()
         treetest = open(open_file)
         l1 = treetest.readline()
         is_nexus = (l1.strip() == "#NEXUS")
@@ -168,7 +192,6 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
                 best_num_spe = num_spe
                 best_node = tnode
             llh_list.append(final_llh)
-
         null_logl = optimize_null_model(utree)
 
         wt_list, num_spe = utree.get_waiting_times(threshold_node = best_node)
@@ -180,27 +203,9 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
         print("Null llh:" + repr(null_logl), file= file2)
         print("P-value:" + repr(lrt.get_p_value()), file= file2)
         file2.close()
-        if show_lineages:
-            utree.num_lineages(wt_list, save_file)
 
-        if show_llh:
-            plt.plot(llh_list)
-            plt.ylabel('Log likelihood')
-            plt.xlabel('Time')
-            plt.savefig(os.path.join(save_file, "Likelihood.png"))
+        return (utree,wt_list,llh_list)
 
-
-        if print_species:
-            utree.print_species(save_file)
-
-        if print_species_spart:
-            utree.print_species_spart(save_file)
-
-        if show_tree:
-            utree.tree.show()
-        else:
-            utree.tree.render(os.path.join(save_file, "myoutput.png"))
-            utree.tree.render(os.path.join(save_file, "myoutput.pdf"))
 
     def takeinputs(self):
         comment1, done1 = QInputDialog.getText(
