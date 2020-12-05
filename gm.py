@@ -52,7 +52,7 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
     def Handel_Buttons(self):  # call back functions
         self.pushButton_7.clicked.connect(self.browse_file1)
         self.pushButton_2.clicked.connect(self.browse_file3)
-        self.pushButton_3.clicked.connect(self.download)
+        self.pushButton_3.clicked.connect(self.download_process)
         self.pushButton_4.clicked.connect(self.view)
         self.pushButton_5.clicked.connect(self.clear)
         self.pushButton_6.clicked.connect(self.takeinputs)
@@ -73,129 +73,134 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             self.lineEdit_2.setText(QDir.toNativeSeparators(str(filenames[0])))
 
 
+    def download_process(self, tree = None):
+        def work(main, *args, **kwargs):
+            main.download()
 
-    def download(self, tree, print_detail = True, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True, pv = 0.01, save_file= None):
-        try:
+        def done():
+            QMessageBox.information(self, "Information", "The species delimitation output data generated successfully")
 
-            self.pushButton_3.setText('Please wait analysis is going on')
-            open_file= self.lineEdit_3.text()
-            save_file = self.lineEdit_2.text()
-            if self.radioButton_2.isChecked() == True:
-                inputformat = "ultrametric"
-            else:
-                inputformat=  "non-ultrametric"
-
-            is_ultrametric = self.radioButton_2.isChecked()
-            # tree= open_file
-            treetest = open(open_file)
-            l1 = treetest.readline()
-            is_nexus = (l1.strip() == "#NEXUS")
-            treetest.close()
-
-            if is_nexus and is_ultrametric:
-                nexus = NexusReader(open_file)
-                nexus.blocks['trees'].detranslate()
-                newick_tree = nexus.trees.trees[0]
-                utree = um_tree(newick_tree)
-            if is_nexus and not is_ultrametric:
-                newick_tree = pyr8s.parse.quick(file=open_file)
-                utree = um_tree(newick_tree)
-            if not is_nexus and is_ultrametric:
-                utree = um_tree(open_file)
-            if not is_nexus and not is_ultrametric:
-                with open(open_file) as file:
-                    newick_tree = file.readline()
-                print(newick_tree)
-                newick_tree = pyr8s.parse.quick(tree=newick_tree)
-                utree = um_tree(newick_tree)
-
-            llh_list = []
-            min_change = 0.1
-            max_iters = 100
-            best_llh = float("-inf")
-            best_num_spe = -1
-            best_node = None
-            for tnode in utree.nodes:
-                QApplication.processEvents()
-                wt_list, num_spe = utree.get_waiting_times(threshold_node = tnode)
-                tt = tree_time(wt_list, num_spe)
-                last_llh = float("-inf")
-                change = float("inf")
-                cnt = 0
-
-                while change > min_change and cnt < max_iters:
-                    cnt = cnt + 1
-
-
-                    para, nn, cc = fmin_l_bfgs_b(tar_fun, [1, 1], args = tuple([tt]), bounds = [[0, 10], [0, 10]], approx_grad = True)
-                    #para, nn, cc = fmin_tnc(tar_fun, [0, 0], args = [tt], disp = False, bounds = [[0, 10], [0, 10]], approx_grad = True)
-                    tt.update(para[0], para[1])
-                    logl = tt.sum_llh()
-                    change = abs(logl - last_llh)
-                    last_llh = logl
-                f= open(os.path.join(save_file, "result_details.txt"), "a")
-                if print_detail:
-                    print("Num spe:" + repr(num_spe) + ": " + repr(tt.sum_llh()), file= f)
-                    print("spe_lambda:" + repr(tt.spe_rate), file= f)
-                    print("coa_lambda:" + repr(tt.coa_rate), file= f)
-                    print("spe_p:" + repr(tt.spe_p), file= f)
-                    print("coa_p:" + repr(tt.coa_p), file= f)
-                    print("-----------------------------------------------------", file= f)
-                f.close()
-                final_llh = tt.sum_llh()
-                if final_llh > best_llh:
-                    best_llh = final_llh
-                    best_num_spe = num_spe
-                    best_node = tnode
-                llh_list.append(final_llh)
-
-            null_logl = optimize_null_model(utree)
-
-            wt_list, num_spe = utree.get_waiting_times(threshold_node = best_node)
-            one_spe, spes = utree.get_species()
-            lrt = lh_ratio_test(null_llh = null_logl, llh = best_llh, df = 2)
-            file2= open(os.path.join(save_file, "result_summary.txt"), "w+")
-            print("Highest llh:" + repr(best_llh), file= file2)
-            print("Num spe:" + repr(best_num_spe), file= file2)
-            print("Null llh:" + repr(null_logl), file= file2)
-            print("P-value:" + repr(lrt.get_p_value()), file= file2)
-            file2.close()
-            if show_lineages:
-                utree.num_lineages(wt_list, save_file)
-
-            if show_llh:
-                plt.plot(llh_list)
-                plt.ylabel('Log likelihood')
-                plt.xlabel('Time')
-                plt.savefig(os.path.join(save_file, "Likelihood.png"))
-
-
-            if print_species:
-                utree.print_species(save_file)
-
-            if print_species_spart:
-                utree.print_species_spart(save_file)
-
-            if show_tree:
-                utree.tree.show()
-            else:
-                utree.tree.render(os.path.join(save_file, "myoutput.png"))
-                utree.tree.render(os.path.join(save_file, "myoutput.pdf"))
-
-            self.pushButton_3.setText('Run analysis and save GMYC output')
-
-            # if lrt.get_p_value() >= pv:
-            #     return one_spe
-            # else:
-            #     return spes
-
-        except Exception as e:
-            print(str(e))
-            self.pushButton_3.setText('Run analysis and save GMYC output')
+        def fail(exception):
+            print(str(exception))
             QMessageBox.warning(self, "Warning", "The species demitation output not obtained, please check input file type")
-            return
-        QMessageBox.information(self, "Information", "The species delimitation output data generated successfully")
 
+        def started():
+            self.pushButton_3.setEnabled(False)
+            self.pushButton_3.setText('Please wait analysis is going on')
+
+        def finished():
+            self.pushButton_3.setEnabled(True)
+            self.pushButton_3.setText('Run analysis and save GMYC output')
+
+        self.launcher = UProcess(work, self)
+        self.launcher.started.connect(started)
+        self.launcher.finished.connect(finished)
+        self.launcher.done.connect(done)
+        self.launcher.fail.connect(fail)
+        self.launcher.start()
+
+    def download(self, tree = None, print_detail = True, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True, pv = 0.01, save_file= None):
+
+        open_file= self.lineEdit_3.text()
+        save_file = self.lineEdit_2.text()
+        if self.radioButton_2.isChecked() == True:
+            inputformat = "ultrametric"
+        else:
+            inputformat=  "non-ultrametric"
+
+        is_ultrametric = self.radioButton_2.isChecked()
+        treetest = open(open_file)
+        l1 = treetest.readline()
+        is_nexus = (l1.strip() == "#NEXUS")
+        treetest.close()
+
+        if is_nexus and is_ultrametric:
+            nexus = NexusReader(open_file)
+            nexus.blocks['trees'].detranslate()
+            newick_tree = nexus.trees.trees[0]
+            utree = um_tree(newick_tree)
+        if is_nexus and not is_ultrametric:
+            newick_tree = pyr8s.parse.quick(file=open_file)
+            utree = um_tree(newick_tree)
+        if not is_nexus and is_ultrametric:
+            utree = um_tree(open_file)
+        if not is_nexus and not is_ultrametric:
+            with open(open_file) as file:
+                newick_tree = file.readline()
+            newick_tree = pyr8s.parse.quick(tree=newick_tree)
+            utree = um_tree(newick_tree)
+
+        llh_list = []
+        min_change = 0.1
+        max_iters = 100
+        best_llh = float("-inf")
+        best_num_spe = -1
+        best_node = None
+        for tnode in utree.nodes:
+            wt_list, num_spe = utree.get_waiting_times(threshold_node = tnode)
+            tt = tree_time(wt_list, num_spe)
+            last_llh = float("-inf")
+            change = float("inf")
+            cnt = 0
+
+            while change > min_change and cnt < max_iters:
+                cnt = cnt + 1
+
+
+                para, nn, cc = fmin_l_bfgs_b(tar_fun, [1, 1], args = tuple([tt]), bounds = [[0, 10], [0, 10]], approx_grad = True)
+                #para, nn, cc = fmin_tnc(tar_fun, [0, 0], args = [tt], disp = False, bounds = [[0, 10], [0, 10]], approx_grad = True)
+                tt.update(para[0], para[1])
+                logl = tt.sum_llh()
+                change = abs(logl - last_llh)
+                last_llh = logl
+            f= open(os.path.join(save_file, "result_details.txt"), "a")
+            if print_detail:
+                print("Num spe:" + repr(num_spe) + ": " + repr(tt.sum_llh()), file= f)
+                print("spe_lambda:" + repr(tt.spe_rate), file= f)
+                print("coa_lambda:" + repr(tt.coa_rate), file= f)
+                print("spe_p:" + repr(tt.spe_p), file= f)
+                print("coa_p:" + repr(tt.coa_p), file= f)
+                print("-----------------------------------------------------", file= f)
+            f.close()
+            final_llh = tt.sum_llh()
+            if final_llh > best_llh:
+                best_llh = final_llh
+                best_num_spe = num_spe
+                best_node = tnode
+            llh_list.append(final_llh)
+
+        null_logl = optimize_null_model(utree)
+
+        wt_list, num_spe = utree.get_waiting_times(threshold_node = best_node)
+        one_spe, spes = utree.get_species()
+        lrt = lh_ratio_test(null_llh = null_logl, llh = best_llh, df = 2)
+        file2= open(os.path.join(save_file, "result_summary.txt"), "w+")
+        print("Highest llh:" + repr(best_llh), file= file2)
+        print("Num spe:" + repr(best_num_spe), file= file2)
+        print("Null llh:" + repr(null_logl), file= file2)
+        print("P-value:" + repr(lrt.get_p_value()), file= file2)
+        file2.close()
+        if show_lineages:
+            utree.num_lineages(wt_list, save_file)
+
+        if show_llh:
+            plt.plot(llh_list)
+            plt.ylabel('Log likelihood')
+            plt.xlabel('Time')
+            plt.savefig(os.path.join(save_file, "Likelihood.png"))
+
+
+        if print_species:
+            utree.print_species(save_file)
+
+        if print_species_spart:
+            utree.print_species_spart(save_file)
+
+        if show_tree:
+            utree.tree.show()
+        else:
+            utree.tree.render(os.path.join(save_file, "myoutput.png"))
+            utree.tree.render(os.path.join(save_file, "myoutput.pdf"))
 
     def takeinputs(self):
         comment1, done1 = QInputDialog.getText(
