@@ -3,7 +3,7 @@
 from PyQt5.QtCore import QRunnable, QThread, pyqtSignal, pyqtSlot # <
 from PyQt5.QtWidgets import QWidget, QToolBar
 
-from multiprocessing import Process, Pipe
+from multiprocessing import Process, Pipe, get_start_method
 
 ##############################################################################
 ### Widgets
@@ -156,3 +156,7 @@ class UProcess(UThread):
             exception = self.pipeOut.recv()
             # self.process.join()
             raise exception
+
+# URunnable is an alias for either of UThread or UProcess,
+# depending on the method used for starting processes.
+URunnable =  UThread if get_start_method() == 'spawn' else UProcess

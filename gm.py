@@ -8,7 +8,7 @@ from PyQt5.uic import loadUiType
 from GMYC import *
 import GMYC
 import pyr8s.parse
-from pyr8s.qt.utility import UProcess
+from pyr8s.qt.utility import URunnable
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtGui import *
 
@@ -124,7 +124,7 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             self.pushButton_3.setText('Run analysis and save GMYC output')
             pass
 
-        self.launcher = UProcess(self.download_work, open_file=open_file, save_file=save_file, is_ultrametric=is_ultrametric)
+        self.launcher = URunnable(self.download_work, open_file=open_file, save_file=save_file, is_ultrametric=is_ultrametric)
         self.launcher.started.connect(started)
         self.launcher.finished.connect(finished)
         self.launcher.done.connect(done)
