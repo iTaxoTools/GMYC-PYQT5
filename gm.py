@@ -43,7 +43,7 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
          if close == QMessageBox.Yes:
 
              event.accept()
-             import sys
+             #import sys
              sys.exit(0)
          else:
 
