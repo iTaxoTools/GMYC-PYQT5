@@ -157,6 +157,11 @@ class UProcess(UThread):
             # self.process.join()
             raise exception
 
+    def quit(self):
+        """Clean exit"""
+        self.process.terminate()
+        super().quit()
+        
 # URunnable is an alias for either of UThread or UProcess,
 # depending on the method used for starting processes.
 URunnable =  UThread if get_start_method() == 'spawn' else UProcess

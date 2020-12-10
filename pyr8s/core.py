@@ -19,7 +19,8 @@ multiple times, changing parameters and calibrations as desired.
 Example:
 analysis = RateAnalysis(tree)
 analysis.param.general['scalar'] = True
-analysis.param.branch_length['persite'] = 100
+analysis.param.branch_length['format'] = 'persite'
+analysis.param.branch_length['nsites'] = 1000
 results = analysis.run()
 results.print()
 
@@ -68,6 +69,7 @@ class Array:
     def __init__(self, param):
         self._param = param
         self._tree = None
+        self._multiplier = None
 
     def make(self, tree):
         """
@@ -80,9 +82,29 @@ class Array:
         _tree = self._tree
 
         scalar = self._param.general.scalar
-        persite = self._param.branch_length.persite
+        format = self._param.branch_length.format
         nsites = self._param.branch_length.nsites
         doround = self._param.branch_length.round
+
+        if format == 'persite':
+            self._multiplier = nsites
+        elif format == 'guess':
+            # Sets nsites such that the 4 most significant digits
+            # of the maximum branch are kept
+            maximum = 0
+            for node in _tree.postorder_node_iter():
+                if node.edge_length is not None and node.edge_length > maximum:
+                    maximum = node.edge_length
+            while maximum < 1000:
+                maximum *= 10
+            print('Guessing number of sites: {}'.format(int(maximum)))
+            self._multiplier = int(maximum)
+        elif format == 'total':
+            self._multiplier = 1
+        else:
+            raise ValueError('Unrecognised branch length format: {}'.
+                format(format))
+
 
         # Ignore all constraints if scalar, fix root age to 1.0
         if scalar:
@@ -96,9 +118,8 @@ class Array:
             _tree.seed_node.fix = 100.0
 
         # Calculate substitutions and trim afterwards
-        _tree.calc_subs(persite, nsites, doround)
+        _tree.calc_subs(self._multiplier, doround)
         _tree.collapse()
-        # print('HERE GOES',persite,doround)
         # _tree.print_plot()
         _tree.index()
         _tree.order()
@@ -234,10 +255,7 @@ class Array:
         """
         Return a copy of the original tree with set ages and local rates.
         """
-        persite = self._param.branch_length.persite
-        nsites = self._param.branch_length.nsites
-        divider = nsites
-        if not persite: divider = 1
+        divider = self._multiplier
         for i in range(self.n):
             self.node[i].age = self.time[i]
             #! PRETTY SURE this is wrong but have to match original....
@@ -482,6 +500,14 @@ class RateAnalysis:
         else:
             self.tree = tree
 
+    def __getstate__(self):
+        return (self._tree,self.param,)
+
+    def __setstate__(self, data):
+        (self._tree,self.param,) = data
+        self.results = None
+        self._array = Array(self.param)
+
     @property
     def tree(self):
         """User can edit tree before run()"""
@@ -493,11 +519,7 @@ class RateAnalysis:
         extensions.extend(self._tree)
         self._tree.is_rooted = True
         self._tree.ground()
-        self._tree.collapse()
-
-    def tree_from_file(self, file):
-        self.tree = dendropy.Tree.get(path=file,
-            schema='nexus', suppress_internal_node_taxa=False)
+        # self._tree.collapse()
 
 
     ##########################################################################
@@ -647,7 +669,7 @@ class RateAnalysis:
         if hasattr(self, '_build_objective_' + self.param.method.method):
             objective = getattr(self, '_build_objective_' + self.param.method.method)()
         else:
-            raise ValueError('No such algorithm: {0}'.format(self.param.method.method))
+            raise ValueError('No implementaion for method: {0}'.format(self.param.method.method))
 
         variable_tolerance = self.param.algorithm.variable_tolerance
         function_tolerance = self.param.algorithm.function_tolerance

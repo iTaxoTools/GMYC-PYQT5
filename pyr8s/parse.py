@@ -18,7 +18,7 @@ def parse_value(tokenizer):
     token = tokenizer.require_next_token_ucase()
     return token
 
-def parse_rates(tokenizer, analysis, allow_run=True):
+def parse_rates(tokenizer, analysis, run=False):
     results = None
     tokenizer.skip_to_semicolon()
     token = tokenizer.next_token_ucase()
@@ -27,7 +27,7 @@ def parse_rates(tokenizer, analysis, allow_run=True):
         and not token==None:
         if token == 'BLFORMAT':
             token = tokenizer.require_next_token_ucase()
-            persite = None
+            format = None
             nsites = None
             while not (token == ';'):
                 if token == 'NSITES':
@@ -38,9 +38,11 @@ def parse_rates(tokenizer, analysis, allow_run=True):
                     token = parse_value(tokenizer)
                     print('* LENGTHS: {0}'.format(token))
                     if token == 'TOTAL':
-                        persite = False
+                        format = 'total'
                     elif token == 'PERSITE':
-                        persite = True
+                        format = 'persite'
+                    elif token == 'GUESS':
+                        format = 'guess'
                     else:
                         raise ValueError("BLFORMAT.LENGTHS: Unrecognised vale: '{}'".format(token))
                 elif token == 'ROUND':
@@ -64,16 +66,16 @@ def parse_rates(tokenizer, analysis, allow_run=True):
                 else:
                     raise ValueError("BLFORMAT: Unrecognised option: '{}'".format(token))
                 token = tokenizer.require_next_token_ucase()
-            if persite is None:
+            if format is None:
                 raise ValueError("BLFORMAT: Expected parameter LENGTHS not given.")
-            elif persite:
+            elif format == 'persite':
                 if nsites is None:
                     raise ValueError("BLFORMAT: Expected parameter NSITES not given.")
-                else:
-                    analysis.param.branch_length.persite = True
-                    analysis.param.branch_length.nsites = nsites
-            elif not persite:
-                analysis.param.branch_length.persite = False
+            else:
+                if nsites is not None:
+                    raise ValueError("BLFORMAT: Unexpected parameter NSITES.")
+            analysis.param.branch_length.format = format
+            analysis.param.branch_length.nsites = nsites
 
         elif token == 'COLLAPSE':
             print('* COLLAPSE: automatic')
@@ -195,7 +197,7 @@ def parse_rates(tokenizer, analysis, allow_run=True):
                     raise ValueError("DIVTIME: Unrecognised option: '{}'".format(token))
                 token = tokenizer.require_next_token_ucase()
             print('\n* BEGIN ANALYSIS: \n')
-            if allow_run:
+            if run:
                 results = analysis.run()
         elif token == 'SET':
             token = tokenizer.require_next_token_ucase()
@@ -241,11 +243,12 @@ def parse_rates(tokenizer, analysis, allow_run=True):
                 token = tokenizer.require_next_token_ucase()
         elif token == 'SHOWAGE':
             tokenizer.skip_to_semicolon()
-            print('* SHOWAGE:')
-            if results is not None:
-                results.print()
-            elif allow_run:
-                raise ValueError("SHOWAGE: Called before DIVTIME, nothing to show.")
+            if run:
+                print('* SHOWAGE:')
+                if results is not None:
+                    results.print()
+                else:
+                    raise ValueError("SHOWAGE: Called before DIVTIME, nothing to show.")
         elif token == 'SCALAR':
             tokenizer.skip_to_semicolon()
             print('* SCALAR:')
@@ -255,30 +258,29 @@ def parse_rates(tokenizer, analysis, allow_run=True):
             while not (token == ';'):
                 if token == 'PLOT':
                     token = parse_value(tokenizer)
-                    if token == 'CLADOGRAM':
-                        print('* {}'.format(token))
-                        pass
-                    if token == 'PHYLOGRAM':
-                        print('* {}'.format(token))
-                        pass
-                    if token == 'CHRONOGRAM':
-                        print('* {} (unweighted branches):'.format(token))
-                        if allow_run:
+                    if run:
+                        if token == 'CLADOGRAM':
+                            print('* {}'.format(token))
+                            pass
+                        if token == 'PHYLOGRAM':
+                            print('* {}'.format(token))
+                            pass
+                        if token == 'CHRONOGRAM':
+                            print('* {} (unweighted branches):'.format(token))
                             core.print_tree(results.chronogram)
-                    if token == 'RATOGRAM':
-                        print('* {}'.format(token))
-                        pass
-                    if token == 'TREE DESCRIPTION':
-                        print('* {}:'.format(token))
-                        if allow_run:
+                        if token == 'RATOGRAM':
+                            print('* {}'.format(token))
+                            pass
+                        if token == 'TREE DESCRIPTION':
+                            print('* {}:'.format(token))
                             print(results.chronogram.as_string(
                                 schema="newick",suppress_internal_node_labels=True))
-                    if token == 'PHYLO DESCRIPTION':
-                        print('* {}'.format(token))
-                        pass
-                    if token == 'RATO DESCRIPTION':
-                        print('* {}'.format(token))
-                        pass
+                        if token == 'PHYLO DESCRIPTION':
+                            print('* {}'.format(token))
+                            pass
+                        if token == 'RATO DESCRIPTION':
+                            print('* {}'.format(token))
+                            pass
                 elif token == 'PLOTWIDTH':
                     print('* {}'.format(token))
                     pass
@@ -294,11 +296,16 @@ def parse_rates(tokenizer, analysis, allow_run=True):
         token = tokenizer.next_token_ucase()
 
 
-def parse(file, allow_run=True):
+def from_file_nexus(file, run=False):
     """First get the tree and create RateAnalysis, then find and parse RATES commands"""
-    tree = dendropy.Tree.get(path=file, schema="nexus", suppress_internal_node_taxa=False)
+    treelist = dendropy.TreeList.get(path=file, schema="nexus",
+        suppress_internal_node_taxa=False)
+    #! if more than one trees are present: do something
+    if len(treelist) > 0:
+        tree = treelist[0]
+    #tree = dendropy.Tree.get(path=file, schema="nexus", suppress_internal_node_taxa=False)
     print("> TREE: from '{}'".format(file))
-    tree.print_plot()
+    # tree.print_plot()
     analysis = core.RateAnalysis(tree)
     file = open(file,'r')
     tokenizer = dendropy.dataio.nexusprocessing.NexusTokenizer(file)
@@ -313,17 +320,48 @@ def parse(file, allow_run=True):
         if token == 'RATES' or token=='R8S':
             print('> RATES BLOCK:')
             print(_SEPARATOR)
-            parse_rates(tokenizer, analysis, allow_run=allow_run)
+            parse_rates(tokenizer, analysis, run=run)
         else:
             while not (token == 'END' or token == 'ENDBLOCK') \
-                and not tokenizer.is_eof() \
-                and not token==None:
+                    and not tokenizer.is_eof() \
+                    and not token==None:
                 tokenizer.skip_to_semicolon()
                 token = tokenizer.next_token_ucase()
     return analysis
 
+def from_tree(newick):
+    analysis = core.RateAnalysis(newick)
+    analysis.param.general.scalar = True
+    analysis.param.branch_length.format = 'guess'
+    return analysis
 
-def quick(tree=None, file=None, persite=True, nsites=None, scalar=True):
+def from_file_newick(file):
+    try:
+        newick = dendropy.Tree.get(path=file,
+            schema='newick', suppress_internal_node_taxa=False)
+        analysis = from_tree(newick)
+    except Exception as exception:
+        raise RuntimeError('Error reading Newick file: {0}\n{1}'.
+            format(file, str(exception)))
+    return analysis
+
+def from_file(file, run=False):
+    """Open and parse a Nexus/Newick file, run analysis if `run` is set"""
+    with open(file) as input:
+        line = input.readline()
+        is_nexus = (line.strip() == "#NEXUS")
+    if is_nexus:
+        # Allow analysis to be run according to nexus rates commands
+        analysis = from_file_nexus(file, run=run)
+    else:
+        analysis = from_file_newick(file)
+    # Force analysis if requested
+    if run is True and analysis.results is None:
+        analysis.run()
+    return analysis
+
+
+def quick(tree=None, file=None, format='guess', nsites=None, scalar=True):
     """
     Run analysis without explicitly setting parameters and calibrations.
 
@@ -338,14 +376,14 @@ def quick(tree=None, file=None, persite=True, nsites=None, scalar=True):
 
     If a tree was given, the following optional keywords are supported:
 
-        persite: bool
-            If |True| then nsites must be provided.
-            If |False| then assume the branch lengths are given in
+        format: string
+            If 'persite' then nsites must be provided.
+            If 'total' then assume the branch lengths are given in
             units of total numbers of substitutions.
+            If 'guess' then try to guess nsites based on given tree lengths.
         nsites : int
             The number of sites in sequences that branch
             lengths on input trees were calculated from.
-            If |None| then try to guess them based on given tree lengths.
         scalar : bool
             If |True| then do a scalar analysis by setting root age to 100.0.
             If |False| then assume the given tree is extended with all
@@ -369,23 +407,10 @@ def quick(tree=None, file=None, persite=True, nsites=None, scalar=True):
             schema="newick", suppress_internal_node_taxa=False)
         analysis = core.RateAnalysis(dendrotree)
         analysis.param.general.scalar = scalar
-        analysis.param.branch_length.persite = persite
-        if not persite:
-            analysis.param.branch_length.nsites = 1
-        elif nsites is not None:
-            analysis.param.branch_length.nsites = nsites
-        elif nsites is None:
-            max = 0
-            for node in dendrotree.postorder_node_iter():
-                if node.edge_length is not None and node.edge_length > max:
-                    max = node.edge_length
-            while max < 1000:
-                max *= 10
-            analysis.param.branch_length.nsites = int(max)
-            print('> GUESSING NSITES FROM BRANCH LENGTHS')
-            print('* NSITES: {0}'.format(int(max)))
+        analysis.param.branch_length.format = format
+        analysis.param.branch_length.nsites = nsites
     elif file is not None:
-        analysis = parse(file, allow_run=False)
+        analysis = from_file(file, run=False)
     else:
         raise TypeError("Must specify one of: 'tree' or 'file'")
     res = analysis.run()

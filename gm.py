@@ -8,9 +8,12 @@ from PyQt5.uic import loadUiType
 from GMYC import *
 import GMYC
 import pyr8s.parse
-from pyr8s.qt.utility import URunnable
+from pyr8s.qt.utility import UProcess, URunnable
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtGui import *
+
+import multiprocessing
+import timeit
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -29,6 +32,11 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
 
         # quit.setIconVisibleInMenu(True)
         quit.triggered.connect(self.closeEvent)
+        self.launcher = None
+        self.time_init = timeit.default_timer()
+        self.time_start = 0
+        self.time_end = 0
+        self.time_diff = 0
 
     # These are required for pickling when spawning a new process.
     # Note that no information is saved and the new Main that spawns will be clean.
@@ -42,9 +50,11 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
          close = QMessageBox.question(self, "QUIT", "Are you sure want to stop process?",QMessageBox.Yes | QMessageBox.No)
          if close == QMessageBox.Yes:
 
-             event.accept()
-             #import sys
-             sys.exit(0)
+            if self.launcher is not None:
+                self.launcher.quit()
+            event.accept()
+            #import sys
+            sys.exit(0)
          else:
 
              event.ignore()
@@ -77,6 +87,8 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
 
     def download(self, tree = None, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True):
 
+        self.time_start = timeit.default_timer()
+        
         open_file= self.lineEdit_3.text()
         save_file = self.lineEdit_2.text()
         is_ultrametric = self.radioButton_2.isChecked()
@@ -87,32 +99,11 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             pass
 
         def done(result):
-            try:
-                (utree,wt_list,llh_list) = result
-                if show_lineages:
-                    utree.num_lineages(wt_list, save_file)
-
-                if show_llh:
-                    plt.plot(llh_list)
-                    plt.ylabel('Log likelihood')
-                    plt.xlabel('Time')
-                    plt.savefig(os.path.join(save_file, "Likelihood.png"))
-
-                if print_species:
-                    utree.print_species(save_file)
-
-                if print_species_spart:
-                    utree.print_species_spart(save_file)
-
-                if show_tree:
-                    utree.tree.show()
-                else:
-                    utree.tree.render(os.path.join(save_file, "myoutput.png"))
-                    utree.tree.render(os.path.join(save_file, "myoutput.pdf"))
-            except Exception as exception:
-                    fail(exception)
-            else:
-                QMessageBox.information(self, "Information", "The species delimitation output data generated successfully")
+            self.time_end = timeit.default_timer()
+            self.time_diff = self.time_end - self.time_start
+            print("GMYC returned: " +  repr(len(result)))
+            print("TIME taken: ", self.time_diff)
+            QMessageBox.information(self, "Information", "The species delimitation output data generated successfully")
 
         def started():
             self.pushButton_3.setEnabled(False)
@@ -124,87 +115,42 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
             self.pushButton_3.setText('Run analysis and save GMYC output')
             pass
 
-        self.launcher = URunnable(self.download_work, open_file=open_file, save_file=save_file, is_ultrametric=is_ultrametric)
+        if not len(open_file) > 0:
+            fail(Exception('File not found.'))
+            return
+
+        self.launcher = UProcess(self.download_work, open_file=open_file, save_file=save_file, is_ultrametric=is_ultrametric)
         self.launcher.started.connect(started)
         self.launcher.finished.connect(finished)
         self.launcher.done.connect(done)
         self.launcher.fail.connect(fail)
         self.launcher.start()
 
-    def download_work(self, open_file=None, save_file=None, is_ultrametric=None, tree = None, print_detail = True, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True, pv = 0.01):
+    def download_work(self, open_file=None, save_file=None, is_ultrametric=None):
 
         treetest = open(open_file)
         l1 = treetest.readline()
         is_nexus = (l1.strip() == "#NEXUS")
         treetest.close()
 
-        if is_nexus and is_ultrametric:
-            nexus = NexusReader(open_file)
-            nexus.blocks['trees'].detranslate()
-            newick_tree = nexus.trees.trees[0]
-            utree = um_tree(newick_tree)
-        if is_nexus and not is_ultrametric:
+        if is_ultrametric:
+            if is_nexus:
+                nexus = NexusReader(open_file)
+                nexus.blocks['trees'].detranslate()
+                newick_tree = nexus.trees.trees[0]
+                stree = newick_tree
+                stree = newick_tree
+            if not is_nexus:
+                stree = open_file
+        else:
+            print('time to parse')
             newick_tree = pyr8s.parse.quick(file=open_file)
-            utree = um_tree(newick_tree)
-        if not is_nexus and is_ultrametric:
-            utree = um_tree(open_file)
-        if not is_nexus and not is_ultrametric:
-            with open(open_file) as file:
-                newick_tree = file.readline()
-            newick_tree = pyr8s.parse.quick(tree=newick_tree)
-            utree = um_tree(newick_tree)
+            stree = newick_tree
 
-        llh_list = []
-        min_change = 0.1
-        max_iters = 100
-        best_llh = float("-inf")
-        best_num_spe = -1
-        best_node = None
-        for tnode in utree.nodes:
-            wt_list, num_spe = utree.get_waiting_times(threshold_node = tnode)
-            tt = tree_time(wt_list, num_spe)
-            last_llh = float("-inf")
-            change = float("inf")
-            cnt = 0
+        sp = gmyc(tree = stree, print_detail = True, show_tree = False, show_llh = True, show_lineages = True, print_species = True, print_species_spart = True, pv = 0.01, save_file= save_file)
+        print("Final number of estimated species by GMYC: " +  repr(len(sp)))
 
-            while change > min_change and cnt < max_iters:
-                cnt = cnt + 1
-
-
-                para, nn, cc = fmin_l_bfgs_b(tar_fun, [1, 1], args = tuple([tt]), bounds = [[0, 10], [0, 10]], approx_grad = True)
-                #para, nn, cc = fmin_tnc(tar_fun, [0, 0], args = [tt], disp = False, bounds = [[0, 10], [0, 10]], approx_grad = True)
-                tt.update(para[0], para[1])
-                logl = tt.sum_llh()
-                change = abs(logl - last_llh)
-                last_llh = logl
-            f= open(os.path.join(save_file, "result_details.txt"), "a")
-            if print_detail:
-                print("Num spe:" + repr(num_spe) + ": " + repr(tt.sum_llh()), file= f)
-                print("spe_lambda:" + repr(tt.spe_rate), file= f)
-                print("coa_lambda:" + repr(tt.coa_rate), file= f)
-                print("spe_p:" + repr(tt.spe_p), file= f)
-                print("coa_p:" + repr(tt.coa_p), file= f)
-                print("-----------------------------------------------------", file= f)
-            f.close()
-            final_llh = tt.sum_llh()
-            if final_llh > best_llh:
-                best_llh = final_llh
-                best_num_spe = num_spe
-                best_node = tnode
-            llh_list.append(final_llh)
-        null_logl = optimize_null_model(utree)
-
-        wt_list, num_spe = utree.get_waiting_times(threshold_node = best_node)
-        one_spe, spes = utree.get_species()
-        lrt = lh_ratio_test(null_llh = null_logl, llh = best_llh, df = 2)
-        file2= open(os.path.join(save_file, "result_summary.txt"), "w+")
-        print("Highest llh:" + repr(best_llh), file= file2)
-        print("Num spe:" + repr(best_num_spe), file= file2)
-        print("Null llh:" + repr(null_logl), file= file2)
-        print("P-value:" + repr(lrt.get_p_value()), file= file2)
-        file2.close()
-
-        return (utree,wt_list,llh_list)
+        return sp
 
 
     def takeinputs(self):
@@ -252,7 +198,6 @@ class Main(QMainWindow, FORM_CLASS):    # create class instance
 
     def clear(self):
         try:
-
             self.lineEdit_3.setText("")
             self.lineEdit_2.setText("")
             self.graphicsView_2.setScene(QGraphicsScene())
@@ -272,7 +217,16 @@ def main1():
     window.show()
     app.exec_()
 
+def show():
+    """Entry point"""
+    app = QApplication(sys.argv)
+    main = Main()
+    main.setWindowFlags(Qt.Window)
+    main.show()
+    sys.exit(app.exec_())
 
 
 if __name__=='__main__':
-    main1()
+    multiprocessing.freeze_support()
+    show()
+    
