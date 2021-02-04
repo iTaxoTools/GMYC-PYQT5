@@ -1,0 +1,42 @@
+<RCC>
+  <qresource>
+    <file>ABGD.ico</file>
+    <file>ASAP.ico</file>
+    <file>Delineate.ico</file>
+    <file>dnaconvert.ico</file>
+    <file>dnadiagnoser.ico</file>
+    <file>Fastmerge_icon.ico</file>
+    <file>Fastsplit_icon.ico</file>
+    <file>GMYC.ico</file>
+    <file>LatLonIcon.ico</file>
+    <file>Limes.ico</file>
+    <file>Linebreaker.ico</file>
+    <file>morphometricanalyzer.ico</file>
+    <file>nodenamecorrector.ico</file>
+    <file>PTP.ico</file>
+    <file>PyR8S.ico</file>
+    <file>specimentablemerger_icon.ico</file>
+    <file>specimentablepruner.ico</file>
+    <file>TaxI2.ico</file>
+    <file>TR2.ico</file>
+    <file>icons/Limes suggested icon.png</file>
+    <file>icons/copy_21mm.png</file>
+    <file>icons/Coverpic_Linnaeus_whitebackground.png</file>
+    <file>icons/delineate_icon_transparent.png</file>
+    <file>icons/dnaconvert_icon_transparent.png</file>
+    <file>icons/dnadiagnoser_icon_transparent.png</file>
+    <file>icons/fastmerge_icon_transparent.png</file>
+    <file>icons/fastsplit_icon_transparent.png</file>
+    <file>icons/GMYC_icon_transparent.png</file>
+    <file>icons/latlonconverter_icon_transparent2.png</file>
+    <file>icons/linebreaker_icon_transparent.png</file>
+    <file>icons/morpometricanalyzer_icon_transparent.png</file>
+    <file>icons/nodenamecorrector_icon_transparent.png</file>
+    <file>icons/PTP_icon_transparent.png</file>
+    <file>icons/pyr8s_icon_transparent.png</file>
+    <file>icons/specimentablemerger_icon_transparent.png</file>
+    <file>icons/specimentablepruner_icon_transparent.png</file>
+    <file>icons/taxi2_icon_transparent.png</file>
+    <file>icons/tr2_icon_transparent.png</file>
+  </qresource>
+</RCC>
