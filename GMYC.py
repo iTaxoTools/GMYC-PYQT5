@@ -233,7 +233,7 @@ class um_tree:
         fo_bestpar = open(os.path.join(save_file, self.unique + "partition_gmyc.spart"), "w+")
         
         if self.fileextension: directory, file= os.path.split(self.fileextension)
-	file= re.sub(r'[^A-Za-z0-9_]', '_', file)
+        file= re.sub(r'[^A-Za-z0-9_]', '_', file)
 
         fo_bestpar.write("begin spart;\n\n")
         fo_bestpar.write(f"Project_name = {file};\n")
